@@ -11,13 +11,16 @@ Point = list[float]  # [x, y]
 class EditTextOp(BaseModel):
     type: Literal["edit_text"]
     page: int
-    bbox: Rect
-    origin: Point
+    bbox: Rect            # original span box (redacted)
+    origin: Point         # original baseline
     new_text: str
     font: str = ""
     size: float = 11.0
     color: str = "#000000"
     flags: int = 0
+    new_bbox: Rect | None = None  # placement box; defaults to bbox
+    wrap: bool = False            # wrap text within new_bbox (htmlbox)
+    orig_size: float | None = None  # original span size, for baseline rescaling
 
 
 class InsertTextOp(BaseModel):
