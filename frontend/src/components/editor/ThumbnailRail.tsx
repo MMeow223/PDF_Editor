@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { api } from '../../api/client'
 import { useEditorStore } from '../../store/editorStore'
+import { Icon } from '../icons'
 
 export function ThumbnailRail() {
   const docId = useEditorStore(s => s.docId)!
@@ -20,9 +21,10 @@ export function ThumbnailRail() {
   }
 
   return (
-    <aside className="w-44 bg-slate-100 border-r border-slate-300 overflow-y-auto p-3 space-y-3 shrink-0">
+    <aside className="shrink-0 overflow-y-auto py-4"
+      style={{ width: 158, background: 'var(--paper-2)', borderRight: 'var(--bd-3)' }}>
       {Array.from({ length: pageCount }, (_, i) => (
-        <div key={i} className="relative group"
+        <div key={i} className="relative group mx-auto mb-4" style={{ width: 108 }}
           draggable
           onDragStart={() => setDragFrom(i)}
           onDragOver={e => { e.preventDefault(); setDragOver(i) }}
@@ -37,30 +39,44 @@ export function ThumbnailRail() {
           <img
             src={api.thumbnailUrl(docId, i, version)}
             alt={`Page ${i + 1}`}
-            className={`w-full rounded border bg-white shadow-sm cursor-grab
-              ${dragOver === i ? 'border-blue-500 border-2' : 'border-slate-300'}`}
+            className="w-full bg-white cursor-grab"
+            style={{
+              border: dragOver === i ? '2px solid var(--accent)' : 'var(--bd)',
+              borderRadius: 5,
+              boxShadow: dragOver === i ? '3px 3px 0 var(--accent)' : 'var(--sh-sm)',
+            }}
             draggable={false}
           />
-          <div className="text-center text-xs text-slate-500 mt-1">{i + 1}</div>
+          <div className="f-disp font-bold text-center mt-1.5" style={{ fontSize: 13 }}>{i + 1}</div>
           <button
-            className="absolute top-1 right-1 bg-white/90 rounded px-1.5 text-slate-600 text-sm opacity-0 group-hover:opacity-100 shadow"
-            onClick={() => setMenuPage(menuPage === i ? null : i)}>
-            ⋯
+            className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 cursor-pointer grid place-items-center"
+            style={{ width: 26, height: 26, background: 'var(--surface)', border: 'var(--bd)', borderRadius: 6, boxShadow: 'var(--sh-sm)' }}
+            onClick={() => setMenuPage(menuPage === i ? null : i)} aria-label="Page actions">
+            <Icon id="dots" className="w-4 h-4" />
           </button>
           {menuPage === i && (
-            <div className="absolute top-7 right-1 bg-white rounded-lg shadow-xl py-1 z-20 w-36 text-sm text-slate-700"
-              onClick={() => setMenuPage(null)}>
-              <button className="block w-full text-left px-3 py-1.5 hover:bg-slate-100"
-                onClick={() => applyOps([{ type: 'page_rotate', page: i, degrees: 90 }])}>Rotate 90°</button>
-              <button className="block w-full text-left px-3 py-1.5 hover:bg-slate-100"
-                onClick={() => applyOps([{ type: 'page_add', page: i + 1 }])}>Add blank after</button>
-              <button className="block w-full text-left px-3 py-1.5 hover:bg-slate-100 text-red-600 disabled:opacity-40"
-                disabled={pageCount <= 1}
-                onClick={() => applyOps([{ type: 'page_delete', page: i }])}>Delete page</button>
+            <div className="bp-menu absolute top-9 right-0 w-44 z-20" onClick={() => setMenuPage(null)}>
+              <button onClick={() => applyOps([{ type: 'page_rotate', page: i, degrees: 90 }])}>
+                <Icon id="rotate" className="w-4 h-4" />Rotate 90°
+              </button>
+              <button onClick={() => applyOps([{ type: 'page_add', page: i + 1 }])}>
+                <Icon id="plus" className="w-4 h-4" />Add blank after
+              </button>
+              <div className="sep" />
+              <button className="danger" disabled={pageCount <= 1}
+                onClick={() => applyOps([{ type: 'page_delete', page: i }])}>
+                <Icon id="trash" className="w-4 h-4" />Delete page
+              </button>
             </div>
           )}
         </div>
       ))}
+      <button
+        className="mx-auto flex items-center justify-center gap-2 font-bold cursor-pointer bg-transparent hover:bg-black/5"
+        style={{ width: 108, height: 46, border: '2px dashed var(--ink)', borderRadius: 7, fontSize: 13, color: 'var(--ink-soft)' }}
+        onClick={() => applyOps([{ type: 'page_add', page: pageCount }])}>
+        <Icon id="plus" className="w-4 h-4" /> Add page
+      </button>
     </aside>
   )
 }

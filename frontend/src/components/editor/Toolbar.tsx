@@ -2,14 +2,8 @@ import { useRef, useState } from 'react'
 import { api } from '../../api/client'
 import type { Tool } from '../../api/types'
 import { useEditorStore } from '../../store/editorStore'
+import { Icon } from '../icons'
 import type { PendingAsset } from './EditorLayout'
-
-const TOOLS: { id: Tool; label: string; title: string }[] = [
-  { id: 'select', label: '↖', title: 'Select / move images' },
-  { id: 'text', label: 'T', title: 'Edit existing text' },
-  { id: 'addText', label: '+T', title: 'Add new text' },
-  { id: 'forms', label: '☐', title: 'Fill form fields' },
-]
 
 interface Props {
   onSignature: () => void
@@ -18,11 +12,84 @@ interface Props {
   onPickAsset: (a: PendingAsset) => void
 }
 
-export function Toolbar({ onSignature, onWatermark, onHistory, onPickAsset }: Props) {
+/* ---------- top bar: navigation, undo/redo, zoom, history, export ---------- */
+
+export function EditorTopBar({ onHistory }: { onHistory: () => void }) {
+  const s = useEditorStore()
+  const [exportOpen, setExportOpen] = useState(false)
+
+  return (
+    <header className="flex items-center gap-3.5 px-5 py-3 flex-wrap z-10 shrink-0"
+      style={{ background: 'var(--surface)', borderBottom: 'var(--bd-3)' }}>
+      <button className="bp-btn sm" onClick={s.closeDocument}>
+        <Icon id="back" /> Files
+      </button>
+
+      <div className="f-disp font-bold flex items-center gap-2.5 min-w-0" style={{ fontSize: 18 }}>
+        <span className="truncate max-w-72" title={s.docName}>{s.docName}</span>
+        <span className="bp-pill" style={{ background: 'var(--paper)' }}>
+          {s.pageCount} page{s.pageCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="flex-1" />
+
+      <div className="flex items-center gap-2">
+        <button className="bp-btn sm" disabled={s.version === 0} onClick={s.undo}>
+          <Icon id="undo" /> Undo
+        </button>
+        <button className="bp-btn sm" disabled={s.version >= s.maxVersion} onClick={s.redo}>
+          <Icon id="redo" /> Redo
+        </button>
+      </div>
+
+      <div style={{ width: 2, height: 30, background: 'var(--ink)', opacity: .15 }} />
+
+      <div className="bp-zoom">
+        <button onClick={() => s.setZoom(s.zoom - 0.2)} aria-label="Zoom out">
+          <Icon id="minus" className="w-[18px] h-[18px]" />
+        </button>
+        <span className="val">{Math.round(s.zoom * 100)}%</span>
+        <button onClick={() => s.setZoom(s.zoom + 0.2)} aria-label="Zoom in">
+          <Icon id="plus" className="w-[18px] h-[18px]" />
+        </button>
+      </div>
+
+      <div style={{ width: 2, height: 30, background: 'var(--ink)', opacity: .15 }} />
+
+      <button className="bp-btn sm" onClick={onHistory}>
+        <Icon id="history" /> History
+      </button>
+
+      <div className="relative">
+        <button className="bp-btn accent sm" onClick={() => setExportOpen(o => !o)}>
+          <Icon id="export" /> Export <Icon id="chev" className="!w-3.5 !h-3.5" />
+        </button>
+        {exportOpen && s.docId && (
+          <div className="bp-menu absolute right-0 mt-2 w-48" onClick={() => setExportOpen(false)}>
+            <a href={api.exportUrl(s.docId, 'pdf')}><Icon id="doc" className="w-4 h-4" />Download PDF</a>
+            <a href={api.exportUrl(s.docId, 'png', '?dpi=150')}><Icon id="image" className="w-4 h-4" />Pages as PNG</a>
+            <a href={api.exportUrl(s.docId, 'docx')}><Icon id="text" className="w-4 h-4" />As Word (.docx)</a>
+          </div>
+        )}
+      </div>
+    </header>
+  )
+}
+
+/* ---------- left dock: labeled tools grouped Edit / Insert / Pages ---------- */
+
+const EDIT_TOOLS: { id: Tool; icon: string; label: string }[] = [
+  { id: 'select', icon: 'cursor', label: 'Select & move' },
+  { id: 'text', icon: 'text', label: 'Edit text' },
+  { id: 'addText', icon: 'addtext', label: 'Add text' },
+  { id: 'forms', icon: 'form', label: 'Fill form' },
+]
+
+export function ToolDock({ onSignature, onWatermark, onPickAsset }: Omit<Props, 'onHistory'>) {
   const s = useEditorStore()
   const imageRef = useRef<HTMLInputElement>(null)
   const mergeRef = useRef<HTMLInputElement>(null)
-  const [exportOpen, setExportOpen] = useState(false)
 
   const pickImage = async (file: File | undefined) => {
     if (!file || !s.docId) return
@@ -51,7 +118,7 @@ export function Toolbar({ onSignature, onWatermark, onHistory, onPickAsset }: Pr
     if (!ranges) return
     try {
       const [doc] = await api.split(s.docId, ranges)
-      window.alert(`Created "${doc.name}" — find it in the document list.`)
+      window.alert(`Created "${doc.name}" — find it in My files.`)
     } catch (e) {
       s.setError(e instanceof Error ? e.message : String(e))
     }
@@ -71,79 +138,43 @@ export function Toolbar({ onSignature, onWatermark, onHistory, onPickAsset }: Pr
     }
   }
 
-  const btn = 'px-2.5 py-1.5 rounded text-sm font-medium transition-colors'
-  const toolBtn = (active: boolean) =>
-    `${btn} ${active ? 'bg-blue-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100'}`
-
   return (
-    <header className="bg-slate-800 text-white px-3 py-2 flex items-center gap-2 flex-wrap shadow z-10">
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={s.closeDocument} title="Back to documents">
-        ←
-      </button>
-      <span className="font-medium text-sm max-w-48 truncate" title={s.docName}>{s.docName}</span>
-
-      <div className="w-px h-6 bg-slate-600 mx-1" />
-
-      {TOOLS.map(t => (
-        <button key={t.id} className={toolBtn(s.activeTool === t.id)} title={t.title}
+    <aside className="shrink-0 overflow-y-auto px-3.5 py-4"
+      style={{ width: 210, background: 'var(--surface)', borderRight: 'var(--bd-3)' }}>
+      <div className="bp-sec mx-1 mb-2.5" style={{ fontSize: 11 }}>Edit</div>
+      {EDIT_TOOLS.map(t => (
+        <button key={t.id} className={`bp-tool ${s.activeTool === t.id ? 'on' : ''}`}
           onClick={() => s.setTool(t.id)}>
-          {t.label}
+          <Icon id={t.icon} /> {t.label}
         </button>
       ))}
-      <button className={`${btn} bg-white text-slate-700 hover:bg-slate-100`} title="Insert image"
-        onClick={() => imageRef.current?.click()}>
-        🖼 Image
+
+      <div className="bp-sec mx-1 mt-4 mb-2.5" style={{ fontSize: 11 }}>Insert</div>
+      <button className="bp-tool" onClick={() => imageRef.current?.click()}>
+        <Icon id="image" /> Image
       </button>
-      <button className={`${btn} bg-white text-slate-700 hover:bg-slate-100`} title="Add signature"
-        onClick={onSignature}>
-        ✍ Sign
+      <button className="bp-tool" onClick={onSignature}>
+        <Icon id="pen" /> Signature
       </button>
-      <button className={`${btn} bg-white text-slate-700 hover:bg-slate-100`} title="Watermark all pages"
-        onClick={onWatermark}>
-        ◈ Watermark
+      <button className="bp-tool" onClick={onWatermark}>
+        <Icon id="drop" /> Watermark
       </button>
 
-      <div className="w-px h-6 bg-slate-600 mx-1" />
-
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600 disabled:opacity-40`}
-        disabled={s.version === 0} onClick={s.undo} title="Undo">⎌ Undo</button>
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600 disabled:opacity-40`}
-        disabled={s.version >= s.maxVersion} onClick={s.redo} title="Redo">Redo</button>
-
-      <div className="w-px h-6 bg-slate-600 mx-1" />
-
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={() => s.setZoom(s.zoom - 0.2)}>−</button>
-      <span className="text-xs w-10 text-center">{Math.round(s.zoom * 100)}%</span>
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={() => s.setZoom(s.zoom + 0.2)}>+</button>
-
-      <div className="flex-1" />
-
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={() => mergeRef.current?.click()}
-        title="Append another PDF">Merge</button>
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={split}
-        title="Extract pages to a new document">Split</button>
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={runOcr}
-        title="OCR scanned pages">OCR</button>
-      <button className={`${btn} bg-slate-700 hover:bg-slate-600`} onClick={onHistory}>History</button>
-
-      <div className="relative">
-        <button className={`${btn} bg-emerald-600 hover:bg-emerald-500`} onClick={() => setExportOpen(o => !o)}>
-          Export ▾
-        </button>
-        {exportOpen && s.docId && (
-          <div className="absolute right-0 mt-1 bg-white text-slate-800 rounded-lg shadow-xl py-1 w-44 z-20"
-            onClick={() => setExportOpen(false)}>
-            <a className="block px-4 py-2 text-sm hover:bg-slate-100" href={api.exportUrl(s.docId, 'pdf')}>Download PDF</a>
-            <a className="block px-4 py-2 text-sm hover:bg-slate-100" href={api.exportUrl(s.docId, 'png', '?dpi=150')}>Pages as PNG</a>
-            <a className="block px-4 py-2 text-sm hover:bg-slate-100" href={api.exportUrl(s.docId, 'docx')}>As Word (.docx)</a>
-          </div>
-        )}
-      </div>
+      <div className="bp-sec mx-1 mt-4 mb-2.5" style={{ fontSize: 11 }}>Pages</div>
+      <button className="bp-tool" onClick={() => mergeRef.current?.click()}>
+        <Icon id="merge" /> Merge PDF
+      </button>
+      <button className="bp-tool" onClick={split}>
+        <Icon id="split" /> Split pages
+      </button>
+      <button className="bp-tool" onClick={runOcr}>
+        <Icon id="scan" /> Make searchable
+      </button>
 
       <input ref={imageRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" hidden
         onChange={e => { pickImage(e.target.files?.[0]); e.target.value = '' }} />
       <input ref={mergeRef} type="file" accept=".pdf" hidden
         onChange={e => { mergeFile(e.target.files?.[0]); e.target.value = '' }} />
-    </header>
+    </aside>
   )
 }

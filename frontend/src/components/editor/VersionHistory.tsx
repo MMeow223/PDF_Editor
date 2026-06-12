@@ -14,22 +14,29 @@ export function VersionHistory({ onClose }: { onClose: () => void }) {
   }, [docId, current])
 
   return (
-    <aside className="w-64 bg-white border-l border-slate-300 overflow-y-auto shrink-0">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <h2 className="font-semibold text-slate-800 text-sm">History</h2>
-        <button className="text-slate-400 hover:text-slate-700" onClick={onClose}>×</button>
+    <aside className="w-72 overflow-y-auto shrink-0"
+      style={{ background: 'var(--surface)', borderLeft: 'var(--bd-3)' }}>
+      <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: 'var(--bd)' }}>
+        <h2 className="f-disp font-bold m-0" style={{ fontSize: 17 }}>History</h2>
+        <button className="cursor-pointer bg-transparent border-none font-bold text-lg p-0"
+          style={{ color: 'var(--ink-soft)' }} onClick={onClose} aria-label="Close">×</button>
       </div>
-      <ul>
+      <ul className="m-0 p-0 list-none">
         {versions.map(v => (
           <li key={v.number}
-            className={`px-4 py-2.5 text-sm cursor-pointer border-b border-slate-100
-              ${v.number === current ? 'bg-blue-50 text-blue-800' : 'hover:bg-slate-50 text-slate-700'}`}
+            className="px-4 py-3 text-sm cursor-pointer"
+            style={{
+              borderBottom: '2px solid var(--paper-2)',
+              background: v.number === current ? 'var(--accent)' : 'transparent',
+              color: v.number === current ? '#fff' : 'var(--ink)',
+            }}
             onClick={() => revert(v.number)}>
-            <div className="font-medium">
+            <div className="font-bold">
               {v.number === 0 ? 'Original' : `Version ${v.number}`}
               {v.number === current && ' ●'}
             </div>
-            <div className="text-xs text-slate-400">
+            <div className="text-xs font-semibold mt-0.5"
+              style={{ color: v.number === current ? 'rgba(255,255,255,.75)' : 'var(--ink-soft)' }}>
               {v.ops_summary.length ? v.ops_summary.join(', ') : 'uploaded'} · {v.created_at}
             </div>
           </li>
