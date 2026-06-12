@@ -22,6 +22,9 @@ class EditTextOp(BaseModel):
     wrap: bool = False            # wrap text within new_bbox (htmlbox)
     orig_size: float | None = None  # original span size, for baseline rescaling
     repl_family: str | None = None  # user-forced replacement family key
+    bold: bool | None = None        # style override; None = keep detected style
+    italic: bool | None = None
+    underline: bool = False
 
 
 class InsertTextOp(BaseModel):
@@ -33,6 +36,9 @@ class InsertTextOp(BaseModel):
     color: str = "#000000"
     font: str = ""
     repl_family: str | None = None
+    bold: bool | None = None
+    italic: bool | None = None
+    underline: bool = False
 
 
 class DeleteTextOp(BaseModel):

@@ -54,19 +54,41 @@ def find_embedded_font(page: fitz.Page, span_font: str, text: str) -> bytes | No
     return None
 
 
-def _pick_font(page: fitz.Page, op, text: str) -> tuple[fitz.Font, bytes | None, str | None]:
+def _resolve_op_font(op):
+    from .fonts import classify
+    bold = getattr(op, "bold", None)
+    italic = getattr(op, "italic", None)
+    res = resolve_font(op.font, op.flags, getattr(op, "repl_family", None), bold, italic)
+    # embedded reuse only valid when neither family nor style was overridden
+    _fam, dbold, ditalic = classify(op.font, op.flags)
+    res["style_unchanged"] = (
+        not getattr(op, "repl_family", None)
+        and (bold is None or bold == dbold)
+        and (italic is None or italic == ditalic)
+    )
+    return res
+
+
+def _pick_font(page: fitz.Page, op, text: str, res: dict) -> tuple[fitz.Font, bytes | None, str | None]:
     """-> (font, embedded_buffer_or_None, bundled_filename_or_None)."""
-    override = getattr(op, "repl_family", None)
-    if not override:  # only attempt exact reuse when user didn't force a family
+    if res["style_unchanged"]:  # exact reuse only without family/style override
         buf = find_embedded_font(page, op.font, text)
         if buf:
             return fitz.Font(fontbuffer=buf), buf, None
-    res = resolve_font(op.font, op.flags, override)
     if res["file"] is not None:
         font = fitz.Font(fontfile=str(res["file"]))
         if _covers(font, text):
             return font, None, res["file"].name
     return fitz.Font(res["base14"]), None, None
+
+
+def _underline(page: fitz.Page, origin: list[float], text_width: float,
+               size: float, color: tuple) -> None:
+    y = origin[1] + size * 0.12
+    page.draw_line(
+        fitz.Point(origin[0], y), fitz.Point(origin[0] + text_width, y),
+        color=color, width=max(0.5, size / 14),
+    )
 
 
 def _write_line(page: fitz.Page, origin: list[float], text: str,
@@ -88,6 +110,7 @@ def _insert_wrapped(
     css_fallback: str = "sans-serif",
     bold: bool = False,
     italic: bool = False,
+    underline: bool = False,
 ) -> None:
     """Wrapping insertion via insert_htmlbox, using the resolved font when given."""
     rect = fitz.Rect(bbox)
@@ -110,6 +133,7 @@ def _insert_wrapped(
         f"{face} * {{ font-size: {size}px; color: {css_color}; font-family: {family}; "
         f"font-weight: {'bold' if bold else 'normal'}; "
         f"font-style: {'italic' if italic else 'normal'}; "
+        f"text-decoration: {'underline' if underline else 'none'}; "
         f"margin: 0; padding: 0; line-height: 1.2; }}"
     )
     grown = fitz.Rect(rect.x0, rect.y0, max(rect.x1, rect.x0 + 10), max(rect.y1, rect.y0 + size * 1.4))
@@ -126,14 +150,16 @@ def edit_text(page: fitz.Page, op) -> None:
     _redact(page, op.bbox)
     color = hex_to_rgb(op.color)
     target = op.new_bbox or op.bbox
-    font, font_buf, font_file = _pick_font(page, op, op.new_text)
-    res = resolve_font(op.font, op.flags, getattr(op, "repl_family", None))
+    res = _resolve_op_font(op)
+    font, font_buf, font_file = _pick_font(page, op, op.new_text, res)
+    underline = getattr(op, "underline", False)
 
     if op.wrap or "\n" in op.new_text:
         _insert_wrapped(
             page, target, op.new_text, op.size, color, op,
             font_buf=font_buf, font_file=font_file,
             css_fallback=res["css"], bold=res["bold"], italic=res["italic"],
+            underline=underline,
         )
         return
 
@@ -156,17 +182,25 @@ def edit_text(page: fitz.Page, op) -> None:
                 fontsize = shrunk
     try:
         _write_line(page, origin, op.new_text, font, fontsize, color)
+        if underline:
+            _underline(page, origin, font.text_length(op.new_text, fontsize=fontsize),
+                       fontsize, color)
     except Exception:
         _insert_wrapped(
             page, target, op.new_text, op.size, color, op,
             css_fallback=res["css"], bold=res["bold"], italic=res["italic"],
+            underline=underline,
         )
 
 
 def insert_text(page: fitz.Page, op) -> None:
     rect = fitz.Rect(op.bbox)
     color = hex_to_rgb(op.color)
-    res = resolve_font(op.font or "helv", 0, getattr(op, "repl_family", None))
+    res = resolve_font(
+        op.font or "helv", 0, getattr(op, "repl_family", None),
+        getattr(op, "bold", None), getattr(op, "italic", None),
+    )
+    underline = getattr(op, "underline", False)
     if res["file"] is not None:
         font = fitz.Font(fontfile=str(res["file"]))
     else:
@@ -176,10 +210,13 @@ def insert_text(page: fitz.Page, op) -> None:
             page, op.bbox, op.text, op.size, color,
             font_file=res["file"].name if res["file"] else None,
             css_fallback=res["css"], bold=res["bold"], italic=res["italic"],
+            underline=underline,
         )
         return
     origin = [rect.x0, rect.y0 + op.size * 0.8]
     _write_line(page, origin, op.text, font, op.size, color)
+    if underline:
+        _underline(page, origin, font.text_length(op.text, fontsize=op.size), op.size, color)
 
 
 def delete_text(page: fitz.Page, op) -> None:

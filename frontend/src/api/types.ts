@@ -76,8 +76,8 @@ export interface VersionState {
 }
 
 export type Op =
-  | { type: 'edit_text'; page: number; bbox: Rect; origin: Point; new_text: string; font: string; size: number; color: string; flags: number; new_bbox?: Rect; wrap?: boolean; orig_size?: number; repl_family?: string | null }
-  | { type: 'insert_text'; page: number; bbox: Rect; text: string; size?: number; color?: string; font?: string }
+  | { type: 'edit_text'; page: number; bbox: Rect; origin: Point; new_text: string; font: string; size: number; color: string; flags: number; new_bbox?: Rect; wrap?: boolean; orig_size?: number; repl_family?: string | null; bold?: boolean | null; italic?: boolean | null; underline?: boolean }
+  | { type: 'insert_text'; page: number; bbox: Rect; text: string; size?: number; color?: string; font?: string; bold?: boolean | null; italic?: boolean | null; underline?: boolean }
   | { type: 'delete_text'; page: number; bbox: Rect }
   | { type: 'insert_image'; page: number; bbox: Rect; asset_id: string }
   | { type: 'delete_image'; page: number; bbox: Rect }

@@ -19,6 +19,9 @@ interface EditState {
   box: Rect // live box in CSS px
   family: string // replacement family key (auto-detected or user override)
   overridden: boolean
+  bold: boolean
+  italic: boolean
+  underline: boolean
 }
 
 export function TextSpanOverlay({ page, spans, scale }: Props) {
@@ -41,6 +44,9 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
       box: pxBox(span.bbox),
       family: span.repl.family,
       overridden: false,
+      bold: span.repl.bold,
+      italic: span.repl.italic,
+      underline: false,
     })
   }
 
@@ -81,7 +87,7 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
 
   const commit = async () => {
     if (!edit) return
-    const { span, draft, size, color, box, family, overridden } = edit
+    const { span, draft, size, color, box, family, overridden, bold, italic, underline } = edit
     setEdit(null)
 
     if (draft.trim() === '') {
@@ -94,8 +100,10 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
     const resized =
       Math.abs((box[2] - box[0]) - (orig[2] - orig[0])) > 1 ||
       Math.abs((box[3] - box[1]) - (orig[3] - orig[1])) > 1
+    const styleChanged = bold !== span.repl.bold || italic !== span.repl.italic || underline
     const changed =
-      draft !== span.text || size !== span.size || color !== span.color || moved || overridden
+      draft !== span.text || size !== span.size || color !== span.color ||
+      moved || overridden || styleChanged
     if (!changed) return
 
     const newBbox: Rect = [box[0] / scale, box[1] / scale, box[2] / scale, box[3] / scale]
@@ -108,14 +116,23 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
       new_bbox: newBbox,
       wrap: resized || draft.includes('\n'),
       repl_family: overridden ? family : null,
+      bold: bold !== span.repl.bold ? bold : null,
+      italic: italic !== span.repl.italic ? italic : null,
+      underline,
     }])
   }
 
   const repl = edit?.span.repl
   const exactPossible = Boolean(
     edit && !edit.overridden && repl?.embedded_available &&
+    edit.bold === repl.bold && edit.italic === repl.italic && !edit.underline &&
     [...edit.draft].every(c => edit.span.text.includes(c) || c === ' ' || c === '\n'),
   )
+
+  const styleBtn = (active: boolean) =>
+    `w-7 h-7 rounded border text-sm leading-none ${active
+      ? 'bg-blue-600 text-white border-blue-600'
+      : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100'}`
 
   return (
     <div className="absolute inset-0">
@@ -165,6 +182,12 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
                 />
                 pt
               </label>
+              <button className={`${styleBtn(edit.bold)} font-bold`} title="Bold"
+                onClick={() => setEdit({ ...edit, bold: !edit.bold })}>B</button>
+              <button className={`${styleBtn(edit.italic)} italic`} title="Italic"
+                onClick={() => setEdit({ ...edit, italic: !edit.italic })}>I</button>
+              <button className={`${styleBtn(edit.underline)} underline`} title="Underline"
+                onClick={() => setEdit({ ...edit, underline: !edit.underline })}>U</button>
               <input
                 type="color" value={edit.color}
                 className="w-7 h-7 border border-slate-300 rounded cursor-pointer"
@@ -197,8 +220,9 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
                 lineHeight: 1.2,
                 color: edit.color,
                 fontFamily: `${cssFamilyName(edit.family)}, ${repl.css}`,
-                fontWeight: repl.bold ? 700 : 400,
-                fontStyle: repl.italic ? 'italic' : 'normal',
+                fontWeight: edit.bold ? 700 : 400,
+                fontStyle: edit.italic ? 'italic' : 'normal',
+                textDecoration: edit.underline ? 'underline' : 'none',
                 whiteSpace: 'pre-wrap',
               }}
               value={edit.draft}

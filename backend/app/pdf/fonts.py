@@ -80,7 +80,13 @@ def classify(font_name: str, flags: int = 0) -> tuple[str, bool, bool]:
     return family, bold, italic
 
 
-def resolve_font(font_name: str, flags: int = 0, family_override: str | None = None) -> dict:
+def resolve_font(
+    font_name: str,
+    flags: int = 0,
+    family_override: str | None = None,
+    bold_override: bool | None = None,
+    italic_override: bool | None = None,
+) -> dict:
     """Resolve to a concrete replacement font.
 
     Returns {"family", "label", "css", "bold", "italic", "file": Path|None,
@@ -89,6 +95,10 @@ def resolve_font(font_name: str, flags: int = 0, family_override: str | None = N
     family, bold, italic = classify(font_name, flags)
     if family_override and family_override in FAMILIES:
         family = family_override
+    if bold_override is not None:
+        bold = bold_override
+    if italic_override is not None:
+        italic = italic_override
     prefix, label, css = FAMILIES[family]
     suffix = _VARIANT_SUFFIX[(bold, italic)]
     path = FONT_DIR / f"{prefix}-{suffix}.ttf"
