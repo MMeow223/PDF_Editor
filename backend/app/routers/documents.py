@@ -3,8 +3,9 @@ import shutil
 from pathlib import Path
 
 import fitz
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 
 from ..config import STORAGE_DIR
 from ..db import get_db
@@ -44,21 +45,64 @@ def _get_doc_or_404(doc_id: str) -> dict:
 
 
 @router.post("", response_model=DocumentOut, status_code=201)
-async def upload_document(file: UploadFile):
+async def upload_document(file: UploadFile, request: Request, folder_id: str | None = None):
     data = await file.read()
+    user_id = request.state.user["id"]
+    if folder_id is not None:
+        _check_folder(folder_id, user_id)
     try:
-        info = storage.create_document(file.filename or "untitled.pdf", data)
+        info = storage.create_document(
+            file.filename or "untitled.pdf", data,
+            owner_id=user_id, folder_id=folder_id,
+        )
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {**info, "created_at": ""}
+    return {**info, "created_at": "", "folder_id": folder_id}
+
+
+def _check_folder(folder_id: str, user_id: int) -> None:
+    row = get_db().execute(
+        "SELECT 1 FROM folders WHERE id = ? AND owner_id = ?", (folder_id, user_id)
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "Folder not found")
+
+
+class DocumentUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    folder_id: str | None = None
+    move_to_root: bool = False
+
+
+@router.patch("/{doc_id}", response_model=DocumentOut)
+def update_document(doc_id: str, body: DocumentUpdate, request: Request):
+    _get_doc_or_404(doc_id)
+    user_id = request.state.user["id"]
+    db = get_db()
+    if body.name is not None:
+        db.execute("UPDATE documents SET name = ? WHERE id = ?", (body.name, doc_id))
+    if body.folder_id is not None:
+        _check_folder(body.folder_id, user_id)
+        db.execute("UPDATE documents SET folder_id = ? WHERE id = ?", (body.folder_id, doc_id))
+    elif body.move_to_root:
+        db.execute("UPDATE documents SET folder_id = NULL WHERE id = ?", (doc_id,))
+    db.commit()
+    row = db.execute(
+        """SELECT d.*, v.page_count FROM documents d
+           JOIN versions v ON v.document_id = d.id AND v.number = d.current_version
+           WHERE d.id = ?""", (doc_id,),
+    ).fetchone()
+    return dict(row)
 
 
 @router.get("", response_model=list[DocumentOut])
-def list_documents():
+def list_documents(request: Request):
     rows = get_db().execute(
         """SELECT d.*, v.page_count FROM documents d
            JOIN versions v ON v.document_id = d.id AND v.number = d.current_version
-           ORDER BY d.created_at DESC"""
+           WHERE d.owner_id = ?
+           ORDER BY d.created_at DESC""",
+        (request.state.user["id"],),
     ).fetchall()
     return [dict(r) for r in rows]
 

@@ -2,7 +2,7 @@ import tempfile
 from pathlib import Path
 
 import fitz
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
 
 from ..pdf import convert, page_ops
@@ -74,7 +74,7 @@ def export_docx(doc_id: str):
 
 
 @router.post("/convert/word-to-pdf", status_code=201)
-async def word_to_pdf(file: UploadFile):
+async def word_to_pdf(file: UploadFile, request: Request, folder_id: str | None = None):
     name = file.filename or "document.docx"
     if not name.lower().endswith((".docx", ".doc", ".odt")):
         raise HTTPException(400, "Expected a Word document (.docx/.doc/.odt)")
@@ -86,4 +86,7 @@ async def word_to_pdf(file: UploadFile):
     except Exception as e:
         raise HTTPException(500, f"Conversion failed: {e}")
     base = name.rsplit(".", 1)[0]
-    return storage.create_document(f"{base}.pdf", pdf_bytes)
+    return storage.create_document(
+        f"{base}.pdf", pdf_bytes,
+        owner_id=request.state.user["id"], folder_id=folder_id,
+    )

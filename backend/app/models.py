@@ -136,6 +136,7 @@ class DocumentOut(BaseModel):
     page_count: int
     current_version: int
     created_at: str
+    folder_id: str | None = None
 
 
 class VersionOut(BaseModel):

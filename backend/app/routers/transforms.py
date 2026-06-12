@@ -1,5 +1,5 @@
 import fitz
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 
 from ..models import OcrRequest, SplitRequest, VersionStateOut
 from ..pdf import ocr, page_ops
@@ -28,7 +28,7 @@ async def merge(doc_id: str, file: UploadFile, position: int | None = None):
 
 
 @router.post("/split")
-def split(doc_id: str, req: SplitRequest):
+def split(doc_id: str, req: SplitRequest, request: Request):
     _require(doc_id)
     doc = fitz.open(str(versions.current_file(doc_id)))
     try:
@@ -40,7 +40,10 @@ def split(doc_id: str, req: SplitRequest):
         doc.close()
     src = versions.get_document(doc_id)
     base = src["name"].rsplit(".pdf", 1)[0]
-    info = storage.create_document(f"{base}-pages-{req.ranges}.pdf", data)
+    info = storage.create_document(
+        f"{base}-pages-{req.ranges}.pdf", data,
+        owner_id=request.state.user["id"],
+    )
     return [info]
 
 

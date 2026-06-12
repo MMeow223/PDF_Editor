@@ -23,7 +23,10 @@ def assets_dir(doc_id: str) -> Path:
     return d
 
 
-def create_document(name: str, pdf_bytes: bytes) -> dict:
+def create_document(
+    name: str, pdf_bytes: bytes,
+    owner_id: int | None = None, folder_id: str | None = None,
+) -> dict:
     """Store uploaded PDF as v0 and create DB rows. Raises ValueError on bad/encrypted PDF."""
     try:
         doc = fitz.open(stream=pdf_bytes, filetype="pdf")
@@ -41,7 +44,8 @@ def create_document(name: str, pdf_bytes: bytes) -> dict:
 
     db = get_db()
     db.execute(
-        "INSERT INTO documents (id, name) VALUES (?, ?)", (doc_id, name)
+        "INSERT INTO documents (id, name, owner_id, folder_id) VALUES (?, ?, ?, ?)",
+        (doc_id, name, owner_id, folder_id),
     )
     db.execute(
         "INSERT INTO versions (document_id, number, file_path, page_count) VALUES (?, 0, ?, ?)",

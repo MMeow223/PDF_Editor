@@ -7,6 +7,7 @@ export interface DocumentInfo {
   page_count: number
   current_version: number
   created_at: string
+  folder_id?: string | null
 }
 
 export interface VersionInfo {
@@ -91,3 +92,15 @@ export type Op =
   | { type: 'watermark'; text: string; pages?: number[] | null; opacity?: number; size?: number; color?: string; angle?: number }
 
 export type Tool = 'select' | 'text' | 'addText' | 'image' | 'signature' | 'forms'
+
+export interface User {
+  id: number
+  username: string
+}
+
+export interface Folder {
+  id: string
+  name: string
+  parent_id: string | null
+  created_at?: string
+}

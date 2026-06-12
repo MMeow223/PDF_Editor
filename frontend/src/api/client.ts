@@ -1,5 +1,5 @@
 import type {
-  DocumentDetail, DocumentInfo, Op, PageLayout, VersionState,
+  DocumentDetail, DocumentInfo, Folder, Op, PageLayout, User, VersionState,
 } from './types'
 
 const BASE = '/api'
@@ -17,10 +17,75 @@ async function json<T>(res: Response): Promise<T> {
 }
 
 export const api = {
-  uploadDocument(file: File): Promise<DocumentInfo> {
+  me(): Promise<User> {
+    return fetch(`${BASE}/auth/me`).then(r => json<User>(r))
+  },
+
+  login(username: string, password: string): Promise<User> {
+    return fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).then(r => json<User>(r))
+  },
+
+  register(username: string, password: string): Promise<User> {
+    return fetch(`${BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    }).then(r => json<User>(r))
+  },
+
+  logout(): Promise<void> {
+    return fetch(`${BASE}/auth/logout`, { method: 'POST' }).then(() => undefined)
+  },
+
+  uploadDocument(file: File, folderId?: string | null): Promise<DocumentInfo> {
     const fd = new FormData()
     fd.append('file', file)
-    return fetch(`${BASE}/documents`, { method: 'POST', body: fd }).then(r => json<DocumentInfo>(r))
+    const q = folderId ? `?folder_id=${folderId}` : ''
+    return fetch(`${BASE}/documents${q}`, { method: 'POST', body: fd }).then(r => json<DocumentInfo>(r))
+  },
+
+  updateDocument(id: string, patch: { name?: string; folder_id?: string | null }): Promise<DocumentInfo> {
+    const body: Record<string, unknown> = {}
+    if (patch.name !== undefined) body.name = patch.name
+    if (patch.folder_id !== undefined) {
+      if (patch.folder_id === null) body.move_to_root = true
+      else body.folder_id = patch.folder_id
+    }
+    return fetch(`${BASE}/documents/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(r => json<DocumentInfo>(r))
+  },
+
+  listFolders(): Promise<Folder[]> {
+    return fetch(`${BASE}/folders`).then(r => json<Folder[]>(r))
+  },
+
+  createFolder(name: string, parentId: string | null): Promise<Folder> {
+    return fetch(`${BASE}/folders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, parent_id: parentId }),
+    }).then(r => json<Folder>(r))
+  },
+
+  renameFolder(id: string, name: string): Promise<Folder> {
+    return fetch(`${BASE}/folders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }).then(r => json<Folder>(r))
+  },
+
+  deleteFolder(id: string): Promise<void> {
+    return fetch(`${BASE}/folders/${id}`, { method: 'DELETE' }).then(r => {
+      if (!r.ok) throw new Error(r.statusText)
+    })
   },
 
   listDocuments(): Promise<DocumentInfo[]> {
@@ -105,10 +170,11 @@ export const api = {
     }).then(r => json<VersionState>(r))
   },
 
-  async wordToPdf(file: File): Promise<DocumentInfo> {
+  async wordToPdf(file: File, folderId?: string | null): Promise<DocumentInfo> {
     const fd = new FormData()
     fd.append('file', file)
-    return fetch(`${BASE}/convert/word-to-pdf`, { method: 'POST', body: fd }).then(r => json<DocumentInfo>(r))
+    const q = folderId ? `?folder_id=${folderId}` : ''
+    return fetch(`${BASE}/convert/word-to-pdf${q}`, { method: 'POST', body: fd }).then(r => json<DocumentInfo>(r))
   },
 
   exportUrl(id: string, kind: 'pdf' | 'png' | 'docx', params = ''): string {
