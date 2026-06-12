@@ -16,6 +16,7 @@ app.add_middleware(
 init_schema()
 
 app.include_router(documents.router, prefix="/api")
+app.include_router(documents.fonts_router, prefix="/api")
 app.include_router(operations.router, prefix="/api")
 app.include_router(transforms.router, prefix="/api")
 app.include_router(export.router, prefix="/api")

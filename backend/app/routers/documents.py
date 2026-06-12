@@ -9,10 +9,31 @@ from fastapi.responses import FileResponse, Response
 from ..config import STORAGE_DIR
 from ..db import get_db
 from ..models import DocumentDetailOut, DocumentOut, LayoutOut
+from ..pdf.fonts import FAMILIES, font_file
 from ..pdf.layout import page_layout
 from ..services import storage, versions
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+fonts_router = APIRouter(prefix="/fonts", tags=["fonts"])
+
+
+@fonts_router.get("")
+def list_families():
+    return [
+        {"family": key, "label": label, "css": css}
+        for key, (_prefix, label, css) in FAMILIES.items()
+    ]
+
+
+@fonts_router.get("/{family}/{variant}.ttf")
+def get_font(family: str, variant: str):
+    path = font_file(family, variant)
+    if path is None:
+        raise HTTPException(404, "Font not found")
+    return FileResponse(
+        path, media_type="font/ttf",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 def _get_doc_or_404(doc_id: str) -> dict:

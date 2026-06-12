@@ -20,6 +20,15 @@ export interface DocumentDetail extends DocumentInfo {
   max_version: number
 }
 
+export interface ReplFont {
+  family: string
+  label: string
+  css: string
+  bold: boolean
+  italic: boolean
+  embedded_available: boolean
+}
+
 export interface Span {
   id: string
   text: string
@@ -29,6 +38,13 @@ export interface Span {
   color: string
   flags: number
   origin: Point
+  repl: ReplFont
+}
+
+export interface FontFamily {
+  family: string
+  label: string
+  css: string
 }
 
 export interface ImageInfo {
@@ -60,7 +76,7 @@ export interface VersionState {
 }
 
 export type Op =
-  | { type: 'edit_text'; page: number; bbox: Rect; origin: Point; new_text: string; font: string; size: number; color: string; flags: number; new_bbox?: Rect; wrap?: boolean; orig_size?: number }
+  | { type: 'edit_text'; page: number; bbox: Rect; origin: Point; new_text: string; font: string; size: number; color: string; flags: number; new_bbox?: Rect; wrap?: boolean; orig_size?: number; repl_family?: string | null }
   | { type: 'insert_text'; page: number; bbox: Rect; text: string; size?: number; color?: string; font?: string }
   | { type: 'delete_text'; page: number; bbox: Rect }
   | { type: 'insert_image'; page: number; bbox: Rect; asset_id: string }

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
-import type { Rect, Span } from '../../api/types'
+import { useEffect, useRef, useState } from 'react'
+import type { FontFamily, Rect, Span } from '../../api/types'
+import { cssFamilyName, ensureFontLoaded, listFamilies } from '../../lib/fonts'
 import { useEditorStore } from '../../store/editorStore'
 
 interface Props {
@@ -16,34 +17,37 @@ interface EditState {
   size: number
   color: string
   box: Rect // live box in CSS px
-}
-
-function fontStyleOf(span: Span) {
-  const name = span.font.toLowerCase()
-  return {
-    family: (span.flags & 8) !== 0 || /courier|mono|consol/.test(name) ? 'monospace'
-      : (span.flags & 4) !== 0 || /times|serif|georgia|garamond|book/.test(name) ? 'serif'
-      : 'sans-serif',
-    weight: (span.flags & 16) !== 0 || /bold|black|heavy/.test(name) ? 700 : 400,
-    style: (span.flags & 2) !== 0 || /italic|oblique/.test(name) ? 'italic' : 'normal',
-  }
+  family: string // replacement family key (auto-detected or user override)
+  overridden: boolean
 }
 
 export function TextSpanOverlay({ page, spans, scale }: Props) {
   const applyOps = useEditorStore(s => s.applyOps)
   const [edit, setEdit] = useState<EditState | null>(null)
+  const [families, setFamilies] = useState<FontFamily[]>([])
   const drag = useRef<{ mode: DragMode; startX: number; startY: number; box: Rect } | null>(null)
+
+  useEffect(() => { listFamilies().then(setFamilies).catch(() => {}) }, [])
 
   const pxBox = (r: Rect): Rect => [r[0] * scale, r[1] * scale, r[2] * scale, r[3] * scale]
 
   const startEdit = (span: Span) => {
+    ensureFontLoaded(span.repl.family)
     setEdit({
       span,
       draft: span.text,
       size: span.size,
       color: span.color,
       box: pxBox(span.bbox),
+      family: span.repl.family,
+      overridden: false,
     })
+  }
+
+  const setFamily = (family: string) => {
+    if (!edit) return
+    ensureFontLoaded(family)
+    setEdit({ ...edit, family, overridden: family !== edit.span.repl.family })
   }
 
   const startDrag = (mode: DragMode) => (e: React.PointerEvent) => {
@@ -77,7 +81,7 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
 
   const commit = async () => {
     if (!edit) return
-    const { span, draft, size, color, box } = edit
+    const { span, draft, size, color, box, family, overridden } = edit
     setEdit(null)
 
     if (draft.trim() === '') {
@@ -91,7 +95,7 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
       Math.abs((box[2] - box[0]) - (orig[2] - orig[0])) > 1 ||
       Math.abs((box[3] - box[1]) - (orig[3] - orig[1])) > 1
     const changed =
-      draft !== span.text || size !== span.size || color !== span.color || moved
+      draft !== span.text || size !== span.size || color !== span.color || moved || overridden
     if (!changed) return
 
     const newBbox: Rect = [box[0] / scale, box[1] / scale, box[2] / scale, box[3] / scale]
@@ -103,10 +107,15 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
       orig_size: span.size,
       new_bbox: newBbox,
       wrap: resized || draft.includes('\n'),
+      repl_family: overridden ? family : null,
     }])
   }
 
-  const f = edit ? fontStyleOf(edit.span) : null
+  const repl = edit?.span.repl
+  const exactPossible = Boolean(
+    edit && !edit.overridden && repl?.embedded_available &&
+    [...edit.draft].every(c => edit.span.text.includes(c) || c === ' ' || c === '\n'),
+  )
 
   return (
     <div className="absolute inset-0">
@@ -118,42 +127,57 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
             key={span.id}
             className="absolute cursor-text hover:outline-2 hover:outline-blue-500 hover:bg-blue-500/10 rounded-xs"
             style={{ left: x0 * scale, top: y0 * scale, width: (x1 - x0) * scale, height: (y1 - y0) * scale }}
-            title={span.text}
+            title={`${span.text}\n${span.font} ${span.size}pt → ${span.repl.label}`}
             onClick={e => { e.stopPropagation(); if (!edit) startEdit(span) }}
           />
         )
       })}
 
-      {edit && f && (
+      {edit && repl && (
         <>
           {/* floating toolbar */}
           <div
-            className="absolute z-40 bg-white rounded-lg shadow-xl border border-slate-300 px-2 py-1.5 flex items-center gap-2 text-xs text-slate-600 select-none"
-            style={{ left: Math.max(0, edit.box[0] - 4), top: Math.max(0, edit.box[1] - 44) }}
+            className="absolute z-40 bg-white rounded-lg shadow-xl border border-slate-300 px-2 py-1.5 text-xs text-slate-600 select-none w-max max-w-md"
+            style={{ left: Math.max(0, edit.box[0] - 4), top: Math.max(0, edit.box[1] - 68) }}
             onClick={e => e.stopPropagation()}
           >
-            <span
-              className="cursor-move text-slate-400 px-1 text-base leading-none"
-              title="Drag to move text"
-              onPointerDown={startDrag('move')}
-              onPointerMove={onDragMove}
-              onPointerUp={onDragUp}
-            >⠿</span>
-            <label className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
+              <span
+                className="cursor-move text-slate-400 px-1 text-base leading-none"
+                title="Drag to move text"
+                onPointerDown={startDrag('move')}
+                onPointerMove={onDragMove}
+                onPointerUp={onDragUp}
+              >⠿</span>
+              <select
+                className="border border-slate-300 rounded px-1 py-0.5 max-w-44"
+                value={edit.family}
+                onChange={e => setFamily(e.target.value)}
+                title={`Original font: ${edit.span.font}`}
+              >
+                {families.map(f => <option key={f.family} value={f.family}>{f.label}</option>)}
+              </select>
+              <label className="flex items-center gap-1">
+                <input
+                  type="number" className="w-14 border border-slate-300 rounded px-1 py-0.5"
+                  value={edit.size} min={4} max={144} step={0.5}
+                  onChange={e => setEdit({ ...edit, size: Number(e.target.value) || edit.size })}
+                />
+                pt
+              </label>
               <input
-                type="number" className="w-14 border border-slate-300 rounded px-1 py-0.5"
-                value={edit.size} min={4} max={144} step={0.5}
-                onChange={e => setEdit({ ...edit, size: Number(e.target.value) || edit.size })}
+                type="color" value={edit.color}
+                className="w-7 h-7 border border-slate-300 rounded cursor-pointer"
+                onChange={e => setEdit({ ...edit, color: e.target.value })}
               />
-              pt
-            </label>
-            <input
-              type="color" value={edit.color}
-              className="w-7 h-7 border border-slate-300 rounded cursor-pointer"
-              onChange={e => setEdit({ ...edit, color: e.target.value })}
-            />
-            <button className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200" onClick={cancel} title="Esc">✕</button>
-            <button className="px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500" onClick={commit} title="⌘/Ctrl+Enter">✓ Apply</button>
+              <button className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200" onClick={cancel} title="Esc">✕</button>
+              <button className="px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-500" onClick={commit} title="⌘/Ctrl+Enter">✓ Apply</button>
+            </div>
+            <div className="mt-1 text-[10px] text-slate-400 truncate" title={edit.span.font}>
+              {exactPossible
+                ? <span className="text-emerald-600 font-medium">Original embedded font will be reused — exact match</span>
+                : <>Original: {edit.span.font} → {families.find(f => f.family === edit.family)?.label ?? edit.family}</>}
+            </div>
           </div>
 
           {/* live edit box */}
@@ -172,9 +196,9 @@ export function TextSpanOverlay({ page, spans, scale }: Props) {
                 fontSize: edit.size * scale,
                 lineHeight: 1.2,
                 color: edit.color,
-                fontFamily: f.family,
-                fontWeight: f.weight,
-                fontStyle: f.style,
+                fontFamily: `${cssFamilyName(edit.family)}, ${repl.css}`,
+                fontWeight: repl.bold ? 700 : 400,
+                fontStyle: repl.italic ? 'italic' : 'normal',
                 whiteSpace: 'pre-wrap',
               }}
               value={edit.draft}

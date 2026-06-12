@@ -21,6 +21,7 @@ class EditTextOp(BaseModel):
     new_bbox: Rect | None = None  # placement box; defaults to bbox
     wrap: bool = False            # wrap text within new_bbox (htmlbox)
     orig_size: float | None = None  # original span size, for baseline rescaling
+    repl_family: str | None = None  # user-forced replacement family key
 
 
 class InsertTextOp(BaseModel):
@@ -31,6 +32,7 @@ class InsertTextOp(BaseModel):
     size: float = 11.0
     color: str = "#000000"
     font: str = ""
+    repl_family: str | None = None
 
 
 class DeleteTextOp(BaseModel):
@@ -141,6 +143,15 @@ class DocumentDetailOut(DocumentOut):
     max_version: int
 
 
+class ReplFontOut(BaseModel):
+    family: str   # bundled family key, e.g. 'liberation-sans'
+    label: str    # human label, e.g. 'Liberation Sans (≈ Arial/Helvetica)'
+    css: str      # generic css fallback family
+    bold: bool
+    italic: bool
+    embedded_available: bool  # original font is embedded (exact reuse may apply)
+
+
 class SpanOut(BaseModel):
     id: str
     text: str
@@ -150,6 +161,7 @@ class SpanOut(BaseModel):
     color: str
     flags: int
     origin: Point
+    repl: ReplFontOut
 
 
 class ImageOut(BaseModel):

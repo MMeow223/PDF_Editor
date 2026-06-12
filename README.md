@@ -4,7 +4,7 @@ Full-stack PDF editor webapp. React frontend renders PDFs with pdf.js; a FastAPI
 
 ## Features
 
-- **Edit text in place** — click any text span, type a replacement; original text is redacted and rewritten at the same baseline (substitute Base-14 font for embedded fonts)
+- **Edit text in place** — click any text span, type a replacement; original text is redacted and rewritten at the same baseline. Font resolution in three tiers: (1) the PDF's own embedded font is reused when it covers all typed glyphs (pixel-exact), (2) metric-compatible bundled fonts (Liberation Sans/Serif/Mono ≈ Arial/Times New Roman/Courier New, Carlito ≈ Calibri, Caladea ≈ Cambria) matched by name/flags, (3) Base-14 fallback. Live in-place preview with the actual replacement font, plus a manual font override dropdown
 - **Add new text** anywhere on a page
 - **Images** — insert, move, resize, delete (including images already in the PDF)
 - **Pages** — add blank, delete, rotate, drag-to-reorder thumbnails, merge another PDF, split/extract pages to a new document
@@ -52,7 +52,7 @@ Open http://localhost:5173 and drop a PDF.
 
 ## Limitations
 
-- **Font matching is approximate.** Embedded/subset fonts can't be reused for new glyphs, so edited text falls back to a matched Base-14 font (Helvetica/Times/Courier × bold/italic). Stylized documents will show a visible difference.
+- **Font matching is best-effort, not guaranteed.** Exact (embedded-font) reuse only works when the replacement uses characters already present in the document's subset font. Otherwise a metric-compatible substitute is used — near-identical for Arial/Times New Roman/Courier New/Calibri/Cambria, approximate for other fonts. The editor shows which font will be used and flags exact matches.
 - **Encrypted PDFs are rejected** at upload — remove the password first.
 - Redact-and-rewrite can clip overlapping ascenders/descenders on very tight layouts; rotated or curved text edits poorly.
 - **OCR rasterizes the page** (already true for scans); quality depends on scan DPI; English tessdata by default.

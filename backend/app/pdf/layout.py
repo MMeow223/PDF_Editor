@@ -1,6 +1,7 @@
 import fitz
 
 from .coords import int_to_hex
+from .fonts import resolve_font, strip_subset
 
 _WIDGET_TYPE_NAMES = {
     fitz.PDF_WIDGET_TYPE_TEXT: "text",
@@ -19,6 +20,36 @@ def page_layout(page: fitz.Page) -> dict:
     All coordinates are in unrotated page space (top-left origin points);
     rotation is reported separately.
     """
+    # embedded (extractable) fonts on this page, by normalized basefont name
+    import re
+
+    def norm(n: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", strip_subset(n).lower())
+
+    embedded = set()
+    for entry in page.get_fonts(full=True):
+        ext, basefont = entry[1], entry[3]
+        if ext != "n/a":
+            embedded.add(norm(basefont))
+
+    repl_cache: dict[tuple[str, int], dict] = {}
+
+    def repl_for(font: str, flags: int) -> dict:
+        key = (font, flags)
+        if key not in repl_cache:
+            r = resolve_font(font, flags)
+            repl_cache[key] = {
+                "family": r["family"],
+                "label": r["label"],
+                "css": r["css"],
+                "bold": r["bold"],
+                "italic": r["italic"],
+                "embedded_available": any(
+                    norm(font) in e or e in norm(font) for e in embedded if e
+                ),
+            }
+        return repl_cache[key]
+
     spans = []
     text = page.get_text("dict")
     for bi, block in enumerate(text["blocks"]):
@@ -37,6 +68,7 @@ def page_layout(page: fitz.Page) -> dict:
                     "color": int_to_hex(span["color"]),
                     "flags": span["flags"],
                     "origin": list(span["origin"]),
+                    "repl": repl_for(span["font"], span["flags"]),
                 })
 
     images = []
